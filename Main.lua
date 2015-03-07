@@ -29,18 +29,30 @@ local function cmdTargetBot(a_SrcBot, a_DstBot)
 	
 	-- If the heading is too off, adjust:
 	if (math.abs(angleDiff) > 5) then
-		commLog("My bot " .. a_SrcBot.id .. ": steering, angle is " .. a_SrcBot.angle .. ", wantAngle is " .. wantAngle .. ", angleDiff is " .. angleDiff)
-		return { cmd = "steer", angle = angleDiff }
+		if ((a_SrcBot.speedLevel > 1) and (math.abs(angleDiff) > 3 * a_SrcBot.maxAngularSpeed)) then
+			-- We're going too fast to steer, brake:
+			aiLog(a_SrcBot.id, "Too fast to steer, breaking. Angle is " .. a_SrcBot.angle .. ", wantAngle is " .. wantAngle .. ", angleDiff is " .. angleDiff)
+			return { cmd = "brake" }
+		else
+			aiLog(
+				a_SrcBot.id, "Steering, angle is " .. a_SrcBot.angle .. ", wantAngle is " .. wantAngle ..
+				", angleDiff is " .. angleDiff .. ", maxAngularSpeed is " .. a_SrcBot.maxAngularSpeed .. ", speed is " .. a_SrcBot.speed
+			)
+			return { cmd = "steer", angle = angleDiff }
+		end
 	end
 	
-	-- If the enemy is further than 50 pixels away, accellerate, else brake:
+	-- If the enemy is further than 200 pixels away, accellerate, else brake:
 	local dist = botDistance(a_SrcBot, a_DstBot)
-	if (dist > 2500) then
-		commLog("My bot " .. a_SrcBot.id .. ": accellerating (dist is " .. dist .. ")")
+	if (dist > 40000) then
+		aiLog(a_SrcBot.id, "Accellerating (dist is " .. dist .. ")")
 		return { cmd = "accelerate" }
-	else
-		commLog("My bot " .. a_SrcBot.id .. ": braking (dist is " .. dist .. ")")
+	elseif (a_SrcBot.speedLevel > 1) then
+		aiLog(a_SrcBot.id, "Braking (dist is " .. dist .. ")")
 		return { cmd = "brake" }
+	else
+		aiLog(a_SrcBot.id, "En route to dst, no command")
+		return nil
 	end
 end
 
@@ -48,15 +60,39 @@ end
 
 
 
+--- Converts bot speed to speed level index:
+local function getSpeedLevelIdxFromSpeed(a_Game, a_Speed)
+	for idx, level in ipairs(a_Game.speedLevels) do
+		if (a_Speed <= level.linearSpeed) then
+			if (idx == 1) then
+				return 1
+			else
+				return idx - 1
+			end
+		end
+	end
+	return 1
+end
+
+
+
+
 --- Updates each bot to target the nearest enemy:
 local function updateTargets(a_Game)
+	-- Update each bot's settings, based on their speed level:
+	for idx, m in ipairs(a_Game.myBots) do
+		m.speedLevel = getSpeedLevelIdxFromSpeed(a_Game, m.speed)
+		m.maxAngularSpeed  = a_Game.speedLevels[m.speedLevel].maxAngularSpeed
+	end
+	
+	-- Update the targets:
 	for idx, m in ipairs(a_Game.myBots) do
 		-- Pick the nearest target:
 		local minDist = a_Game.world.width * a_Game.world.width + a_Game.world.height * a_Game.world.height
 		local target
 		for idx2, e in ipairs(a_Game.enemyBots) do
 			local dist = botDistance(m, e)
-			-- commLog("  Distance between my #" .. m.id .. " and enemy #" .. e.id .. " is " .. dist)
+			-- commentLog("  Distance between my #" .. m.id .. " and enemy #" .. e.id .. " is " .. dist)
 			if (dist < minDist) then
 				minDist = dist
 				target = e
@@ -65,7 +101,7 @@ local function updateTargets(a_Game)
 		
 		-- Navigate towards the target:
 		if (target) then
-			commLog("My #" .. m.id .. " is targetting enemy #" .. target.id)
+			aiLog(m.id, "Targetting enemy #" .. target.id)
 			a_Game.botCommands[m.id] = cmdTargetBot(m, target)
 		end
 	end
