@@ -87,12 +87,13 @@ end
 
 
 
+
 --- Updates each bot to target the nearest enemy:
 local function updateTargets(a_Game)
 	-- Check params:
 	assert(type(a_Game) == "table")
 	
-	-- Update each bot's settings, based on their speed level:
+	-- Update each bot's stats, based on their speed level:
 	for idx, m in ipairs(a_Game.myBots) do
 		m.speedLevel = getSpeedLevelIdxFromSpeed(a_Game, m.speed)
 		m.maxAngularSpeed  = a_Game.speedLevels[m.speedLevel].maxAngularSpeed
@@ -152,9 +153,6 @@ function onGameStarted(a_Game)
 	a_Game.speedToSpeedLevel[0] = 1  -- Special case - bots with zero speed are handled as having the lowest speed
 	a_Game.maxBotSpeed = maxSpeed
 	a_Game.minBotSpeed = minSpeed
-	
-	-- Set each bot's target:
-	updateTargets(a_Game)
 end
 
 
